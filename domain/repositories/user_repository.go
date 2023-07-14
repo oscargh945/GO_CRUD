@@ -63,7 +63,7 @@ func (r *UserRepository) PaginationSearchUsers(SearchUser *string, page, pageSiz
 	//findOptions.SetLimit(int64(pageSize))
 	//findOptions.SetSkip(int64(pagination))
 	searchPattern := bson.M{"$regex": *SearchUser, "$options": "i"}
-	filter := bson.M{"name": searchPattern}
+	filter := bson.M{"name": searchPattern, "softDeleted": false}
 	var option = options.Find().SetSort(bson.D{{Key: "name", Value: 1}}).SetLimit(int64(*pageSize)).SetSkip(int64(pagination))
 	cur, err := collec.Find(ctx, filter, option)
 	if err != nil {
