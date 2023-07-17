@@ -1,0 +1,17 @@
+version: '3.9'
+
+services:
+  go_crud:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: api_go
+    restart: always
+    env_file:
+      - .env
+    ports:
+      - ${PORT}:${PORT}
+    healthcheck:
+      test: [ "CMD-SHELL", "curl -f http://localhost:${PORT}/" ]
+      timeout: 3s
+      retries: 3
