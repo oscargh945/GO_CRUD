@@ -2,8 +2,23 @@
 
 package model
 
+import (
+	"github.com/oscargh945/go-crud-graphql/domain/entities"
+)
+
 type DeleteUserResponse struct {
 	DeleteUserID string `json:"deleteUserId"`
+}
+
+type LoginInput struct {
+	Email    string `json:"email"`
+	Password string `json:"password"`
+}
+
+type LoginResponse struct {
+	User         *entities.User `json:"user"`
+	TokenAccess  string         `json:"tokenAccess"`
+	TokenRefresh string         `json:"tokenRefresh"`
 }
 
 type UpdateUserInput struct {

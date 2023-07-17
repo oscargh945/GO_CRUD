@@ -33,3 +33,7 @@ func (u *UserUseCase) UpdateUserUseCase(id string, user model.UpdateUserInput) *
 func (u *UserUseCase) SoftDeleteUserUseCase(id string) *model.DeleteUserResponse {
 	return u.Repository.SoftDeleteUser(id)
 }
+
+func (u *UserUseCase) LoginUseCase(user model.LoginInput) (*model.LoginResponse, error) {
+	panic("")
+}

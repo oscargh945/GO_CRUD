@@ -3,6 +3,7 @@ package repositories
 import (
 	"context"
 	"fmt"
+	"github.com/oscargh945/go-crud-graphql/domain"
 	"github.com/oscargh945/go-crud-graphql/domain/entities"
 	"github.com/oscargh945/go-crud-graphql/graph/model"
 	"go.mongodb.org/mongo-driver/bson"
@@ -125,7 +126,11 @@ func (r *UserRepository) CreateUser(userInfo entities.CreateUserInput) (*entitie
 	if r.ExistingPhoneUser(userInfo.Phone) {
 		return nil, fmt.Errorf("El phone ingresado ya esta en uso")
 	}
-	inserg, err := collec.InsertOne(ctx, bson.M{"name": userInfo.Name, "email": userInfo.Email, "phone": userInfo.Phone, "softDeleted": userInfo.SoftDeleted})
+	hash, err := domain.HashPassword(userInfo.Password)
+	if err != nil {
+		log.Fatal("No se hasheo la password")
+	}
+	inserg, err := collec.InsertOne(ctx, bson.M{"name": userInfo.Name, "email": userInfo.Email, "phone": userInfo.Phone, "password": hash, "softDeleted": userInfo.SoftDeleted})
 
 	if err != nil {
 		log.Fatal("No se inserto el usuario", err)
@@ -175,4 +180,29 @@ func (r *UserRepository) ExistingPhoneUser(phone string) bool {
 		log.Fatal("No se encontro un usuario con el phone ingresado", err)
 	}
 	return count > 0
+}
+
+func (r *UserRepository) Login(userInfo model.LoginInput) (*model.LoginResponse, error) {
+	collec := r.Client.Collection("users")
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	filter := bson.M{"email": userInfo.Email}
+	_, err := collec.CountDocuments(ctx, filter)
+	if err != nil {
+		return nil, fmt.Errorf("No se encontro un usurario con ese email")
+	}
+
+	filter2 := bson.M{"password": userInfo.Password}
+	data := collec.FindOne(ctx, filter2)
+	var users entities.User
+	if err := data.Decode(&users); err != nil {
+		return nil, fmt.Errorf("error al decodificar las credenciales")
+	}
+
+	isValid := domain.ValidPassword(userInfo.Password, users.Password)
+	if !isValid {
+		return nil, fmt.Errorf("La contraseña es incorrecta")
+	}
+	return nil, nil
 }

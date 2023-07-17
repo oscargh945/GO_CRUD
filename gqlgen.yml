@@ -87,7 +87,7 @@ models:
       - github.com/99designs/gqlgen/graphql.Int32
   User:
     model:
-      - github.com/oscargh945/go-crud-graphql/entities.User
+      - github.com/oscargh945/go-crud-graphql/domain/entities.User
   CreateUserInput:
     model:
-      - github.com/oscargh945/go-crud-graphql/entities.CreateUserInput
+      - github.com/oscargh945/go-crud-graphql/domain/entities.CreateUserInput

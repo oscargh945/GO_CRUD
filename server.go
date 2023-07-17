@@ -1,6 +1,7 @@
 package main
 
 import (
+	"github.com/joho/godotenv"
 	"github.com/oscargh945/go-crud-graphql/domain/repositories"
 	"github.com/oscargh945/go-crud-graphql/domain/usecase"
 	"github.com/oscargh945/go-crud-graphql/graph"
@@ -16,6 +17,7 @@ import (
 const defaultPort = "8080"
 
 func main() {
+	godotenv.Load()
 	port := os.Getenv("PORT")
 	if port == "" {
 		port = defaultPort
