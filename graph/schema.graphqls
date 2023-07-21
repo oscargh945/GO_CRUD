@@ -47,4 +47,5 @@ type Mutation {
   updateUser(id: String!, input: UpdateUserInput!): User
   softDeletedUser(id: ID!): DeleteUserResponse!
   login(input: LoginInput!): LoginResponse!
+  refresh(refreshToken: String!): LoginResponse!
 }

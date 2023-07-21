@@ -35,5 +35,9 @@ func (u *UserUseCase) SoftDeleteUserUseCase(id string) *model.DeleteUserResponse
 }
 
 func (u *UserUseCase) LoginUseCase(user model.LoginInput) (*model.LoginResponse, error) {
-	panic("")
+	return u.Repository.Login(user)
+}
+
+func (u *UserUseCase) RefreshUseCase(refreshToken string) (*model.LoginResponse, error) {
+	return u.Repository.Refresh(refreshToken)
 }

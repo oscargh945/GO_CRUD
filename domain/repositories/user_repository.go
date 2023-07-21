@@ -3,6 +3,8 @@ package repositories
 import (
 	"context"
 	"fmt"
+	"github.com/golang-jwt/jwt/v5"
+	"github.com/google/uuid"
 	"github.com/oscargh945/go-crud-graphql/domain"
 	"github.com/oscargh945/go-crud-graphql/domain/entities"
 	"github.com/oscargh945/go-crud-graphql/graph/model"
@@ -11,6 +13,7 @@ import (
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 	"log"
+	"os"
 	"time"
 )
 
@@ -58,11 +61,8 @@ func (r *UserRepository) PaginationSearchUsers(SearchUser *string, page, pageSiz
 	collec := r.Client.Collection("users")
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
-	//searchPattern := bson.M{"$regex": SearchUser, "$name": ""}
+
 	pagination := (*page - 1) * *pageSize
-	//findOptions := options.Find()
-	//findOptions.SetLimit(int64(pageSize))
-	//findOptions.SetSkip(int64(pagination))
 	searchPattern := bson.M{"$regex": *SearchUser, "$options": "i"}
 	filter := bson.M{"name": searchPattern, "softDeleted": false}
 	var option = options.Find().SetSort(bson.D{{Key: "name", Value: 1}}).SetLimit(int64(*pageSize)).SetSkip(int64(pagination))
@@ -187,22 +187,125 @@ func (r *UserRepository) Login(userInfo model.LoginInput) (*model.LoginResponse,
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
+	var user entities.User
+
 	filter := bson.M{"email": userInfo.Email}
-	_, err := collec.CountDocuments(ctx, filter)
+	err := collec.FindOne(ctx, filter).Decode(&user)
 	if err != nil {
-		return nil, fmt.Errorf("No se encontro un usurario con ese email")
+		return nil, fmt.Errorf("Email no existente")
 	}
 
-	filter2 := bson.M{"password": userInfo.Password}
-	data := collec.FindOne(ctx, filter2)
-	var users entities.User
-	if err := data.Decode(&users); err != nil {
-		return nil, fmt.Errorf("error al decodificar las credenciales")
-	}
-
-	isValid := domain.ValidPassword(userInfo.Password, users.Password)
+	// Validate the password
+	isValid := domain.ValidPassword(userInfo.Password, user.Password)
 	if !isValid {
 		return nil, fmt.Errorf("La contraseña es incorrecta")
 	}
-	return nil, nil
+
+	// Generate the tokens
+	tokens, err := r.GenerateTokens(user)
+	if err != nil {
+		return nil, err
+	}
+
+	response := model.LoginResponse{
+		User:         &user,
+		TokenAccess:  tokens["access"],
+		TokenRefresh: tokens["refresh"],
+	}
+	return &response, nil
+}
+
+func (r *UserRepository) GenerateTokens(user entities.User) (map[string]string, error) {
+	tokens := make(map[string]string)
+
+	jti := uuid.New()
+	rti := uuid.New()
+
+	accessDuration := time.Minute * 24
+	tokenAccess := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
+		"sub":   user.Id,
+		"name":  user.Name,
+		"email": user.Email,
+		"phone": user.Phone,
+		"exp":   time.Now().Add(accessDuration).Unix(),
+		"jti":   jti,
+		"rti":   rti,
+	})
+
+	refreshDuration := time.Minute * 25
+	tokenRefresh := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
+		"sub":   user.Id,
+		"name":  user.Name,
+		"email": user.Email,
+		"phone": user.Phone,
+		"exp":   time.Now().Add(refreshDuration).Unix(),
+		"jti":   rti,
+		"rti":   jti,
+	})
+
+	tokenAccessString, err := tokenAccess.SignedString([]byte(os.Getenv("SECRET")))
+	if err != nil {
+		return nil, err
+	}
+	tokenRefreshString, err := tokenRefresh.SignedString([]byte(os.Getenv("SECRET")))
+	if err != nil {
+		return nil, err
+	}
+
+	tokens["access"] = tokenAccessString
+	tokens["refresh"] = tokenRefreshString
+
+	return tokens, nil
+}
+
+func (r *UserRepository) ValidateJWT(tokenString string, secretKey []byte) (map[string]interface{}, error) {
+	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
+		return secretKey, nil
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	if claims, ok := token.Claims.(jwt.MapClaims); ok && token.Valid {
+		response := map[string]interface{}{
+			"sub":   claims["sub"].(string),
+			"name":  claims["name"].(string),
+			"email": claims["email"].(string),
+			"phone": claims["phone"].(string),
+		}
+		return response, nil
+	} else {
+		return nil, fmt.Errorf("Token invalido")
+	}
+}
+
+func (r *UserRepository) Refresh(refreshToken string) (*model.LoginResponse, error) {
+	token, err := jwt.Parse(refreshToken, func(token *jwt.Token) (interface{}, error) {
+		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
+		}
+		return []byte(os.Getenv("SECRET")), nil
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	if _, ok := token.Claims.(jwt.Claims); !ok && !token.Valid {
+		return nil, fmt.Errorf("Token invalido")
+	}
+
+	_, ok := token.Claims.(jwt.MapClaims)
+	if !ok && !token.Valid {
+		return nil, fmt.Errorf("token Refresh expirado")
+	}
+
+	var user entities.User
+	tokens, _ := r.GenerateTokens(user)
+	response := &model.LoginResponse{
+		User:         &user,
+		TokenAccess:  tokens["access"],
+		TokenRefresh: tokens["refresh"],
+	}
+	return response, nil
 }

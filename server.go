@@ -25,6 +25,10 @@ func main() {
 
 	mongoConnection := infrastructure.Connect()
 
+	repository := &repositories.UserRepository{
+		Client: mongoConnection,
+	}
+
 	userUseCase := usecase.UserUseCase{
 		Repository: repositories.UserRepository{
 			Client: mongoConnection,
@@ -36,7 +40,7 @@ func main() {
 	}}))
 
 	http.Handle("/", playground.Handler("GraphQL playground", "/query"))
-	http.Handle("/query", srv)
+	http.Handle("/query", repository.AuthMiddleware(srv))
 
 	log.Printf("connect to http://localhost:%s/ for GraphQL playground", port)
 	log.Fatal(http.ListenAndServe(":"+port, nil))

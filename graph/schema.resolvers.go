@@ -34,30 +34,55 @@ func (r *mutationResolver) CreateUser(ctx context.Context, input entities.Create
 
 // UpdateUser is the resolver for the updateUser field.
 func (r *mutationResolver) UpdateUser(ctx context.Context, id string, input model.UpdateUserInput) (*entities.User, error) {
+	if admin, err := r.UserUseCase.Repository.GetCurrentUserFromCTX(ctx); err != nil {
+		return nil, err
+	} else if admin == nil {
+		return nil, fmt.Errorf("Acceso denegado")
+	}
 	return r.UserUseCase.UpdateUserUseCase(id, input), nil
 }
 
 // SoftDeletedUser is the resolver for the softDeletedUser field.
 func (r *mutationResolver) SoftDeletedUser(ctx context.Context, id string) (*model.DeleteUserResponse, error) {
+	if admin, err := r.UserUseCase.Repository.GetCurrentUserFromCTX(ctx); err != nil {
+		return nil, err
+	} else if admin == nil {
+		return nil, fmt.Errorf("Acceso denegado")
+	}
 	return r.UserUseCase.SoftDeleteUserUseCase(id), nil
 }
 
 // Login is the resolver for the login field.
 func (r *mutationResolver) Login(ctx context.Context, input model.LoginInput) (*model.LoginResponse, error) {
-	panic(fmt.Errorf("not implemented: Login - login"))
+	return r.UserUseCase.LoginUseCase(input)
+}
+
+// Refresh is the resolver for the refresh field.
+func (r *mutationResolver) Refresh(ctx context.Context, refreshToken string) (*model.LoginResponse, error) {
+	return r.UserUseCase.RefreshUseCase(refreshToken)
 }
 
 // GetAllUsers is the resolver for the getAllUsers field.
 func (r *queryResolver) GetAllUsers(ctx context.Context) ([]*entities.User, error) {
-	users, err := r.UserUseCase.GetAllUsersUseCase()
-	if err != nil {
+	if admin, err := r.UserUseCase.Repository.GetCurrentUserFromCTX(ctx); err != nil {
 		return nil, err
+	} else if admin == nil {
+		return nil, fmt.Errorf("Acceso denegado")
 	}
-	return users, nil
+	if users, err := r.UserUseCase.GetAllUsersUseCase(); err != nil {
+		return nil, err
+	} else {
+		return users, nil
+	}
 }
 
 // GetUser is the resolver for the getUser field.
 func (r *queryResolver) GetUser(ctx context.Context, id string) (*entities.User, error) {
+	if admin, err := r.UserUseCase.Repository.GetCurrentUserFromCTX(ctx); err != nil {
+		return nil, err
+	} else if admin == nil {
+		return nil, fmt.Errorf("Acceso denegado")
+	}
 	user, err := r.UserUseCase.GetUserUseCase(id)
 	if err != nil {
 		return nil, err
@@ -82,6 +107,11 @@ func (r *queryResolver) PaginationSearchUsers(ctx context.Context, searchUser *s
 		searchUser = &defaultSeachUser
 	}
 
+	if admin, err := r.UserUseCase.Repository.GetCurrentUserFromCTX(ctx); err != nil {
+		return nil, err
+	} else if admin == nil {
+		return nil, fmt.Errorf("Acceso denegado")
+	}
 	users, err := r.UserUseCase.PaginationSearchUsersUseCase(searchUser, page, pageSize)
 	if err != nil {
 		return nil, err
